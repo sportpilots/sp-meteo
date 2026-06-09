@@ -134,7 +134,7 @@
       transition: background 0.3s;
     }
 
-    #connection-dot.live { background: var(--vfr-ok); box-shadow: 0 0 6px var(--vfr-ok); }
+    #connection-dot.live  { background: var(--vfr-ok); box-shadow: 0 0 6px var(--vfr-ok); }
     #connection-dot.error { background: var(--vfr-no); }
 
     /* ─── BLOQUES DE DATOS ─────────────────────────────────────── */
@@ -183,13 +183,8 @@
       text-align: right;
     }
 
-    .data-value.highlight {
-      color: var(--accent);
-    }
-
-    .data-value.warn-value {
-      color: var(--vfr-warn);
-    }
+    .data-value.highlight  { color: var(--accent); }
+    .data-value.warn-value { color: var(--vfr-warn); }
 
     .rwy-badge {
       display: inline-block;
@@ -203,9 +198,7 @@
     }
 
     /* ─── PRECIPITACIÓN ────────────────────────────────────────── */
-    .precip-bar-wrap {
-      margin-top: 8px;
-    }
+    .precip-bar-wrap { margin-top: 8px; }
 
     .precip-label-row {
       display: flex;
@@ -244,6 +237,21 @@
       color: var(--text);
     }
 
+    /* ─── AVISO MIXED CONTENT ──────────────────────────────────── */
+    #mixed-content-warning {
+      display: none;
+      background: #3b1f00;
+      border: 1px solid var(--vfr-warn);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: var(--vfr-warn);
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    #mixed-content-warning.visible { display: block; }
+
     /* ─── DISCLAIMER ───────────────────────────────────────────── */
     #disclaimer {
       padding: 12px 16px;
@@ -267,7 +275,7 @@
 
     #error-screen.visible { display: flex; }
 
-    .error-icon { font-size: 40px; }
+    .error-icon  { font-size: 40px; }
 
     .error-title {
       font-family: var(--font-mono);
@@ -294,16 +302,16 @@
     /* ─── LOADING ──────────────────────────────────────────────── */
     @keyframes pulse {
       0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
+      50%       { opacity: 0.3; }
     }
 
     .loading-pulse { animation: pulse 1.2s ease-in-out infinite; }
 
     /* ─── RESPONSIVE: tablets/desktop ─────────────────────────── */
     @media (min-width: 480px) {
-      #vfr-hero { padding: 36px 32px 30px; }
+      #vfr-hero   { padding: 36px 32px 30px; }
       #vfr-status { font-size: 32px; }
-      #data-grid { padding: 16px; gap: 12px; max-width: 480px; margin: 0 auto; width: 100%; }
+      #data-grid  { padding: 16px; gap: 12px; max-width: 480px; margin: 0 auto; width: 100%; }
     }
 
     /* ─── REDUCED MOTION ───────────────────────────────────────── */
@@ -333,6 +341,18 @@
 
   <!-- DATOS -->
   <div id="data-grid">
+
+    <!-- AVISO MIXED CONTENT (oculto por defecto) -->
+    <div id="mixed-content-warning">
+      ⚠️ Tu navegador ha bloqueado la conexión con el servidor meteorológico
+      porque la app usa HTTPS pero el servidor responde por HTTP.<br><br>
+      <strong>Solución:</strong> abre la app en Chrome en lugar de Safari,
+      o accede directamente por HTTP:<br>
+      <a href="http://sportpilots.ddns.net:5678/webhook/meteo"
+         style="color:var(--accent);word-break:break-all;">
+        http://sportpilots.ddns.net:5678/webhook/meteo
+      </a>
+    </div>
 
     <!-- VIENTO -->
     <div class="data-block" id="block-wind">
@@ -417,42 +437,41 @@
     <div id="error-screen">
       <span class="error-icon">📡</span>
       <div class="error-title">Sin conexión con el sensor</div>
-      <div class="error-msg" id="error-detail">No se han podido obtener datos meteorológicos. Comprueba tu conexión a internet.</div>
+      <div class="error-msg" id="error-detail">
+        No se han podido obtener datos meteorológicos.
+        Comprueba tu conexión a internet.
+      </div>
     </div>
 
   </div>
 
   <!-- DISCLAIMER -->
   <div id="disclaimer">
-    ℹ️ Dato orientativo. La operatividad del aeródromo corresponde<br>exclusivamente a la autoridad competente.
+    ℹ️ Dato orientativo. La operatividad del aeródromo corresponde<br>
+    exclusivamente a la autoridad competente.
   </div>
 
   <!-- VERSION -->
-  <div id="version-tag">SP Meteo v1.2.0</div>
+  <div id="version-tag">SP Meteo v1.3.0</div>
 
 
   <script>
     // ─── CONFIGURACIÓN ──────────────────────────────────────────
     const ENDPOINT   = 'http://sportpilots.ddns.net:5678/webhook/meteo';
-    const INTERVAL   = 30000; // 30 segundos
+    const INTERVAL   = 30000; // ms — actualización automática cada 30 segundos
     const LEWG_ELEV  = 879;   // ft
 
     // Límites VFR LEWG
     const LIM_WIND      = 35;   // km/h sostenido
     const LIM_GUST      = 45;   // km/h racha
     const LIM_CROSS     = 20;   // km/h cruzado
-    const LIM_RAIN_WARN = 2;    // mm/h PRECAUCIÓN
-    const LIM_RAIN_NO   = 8;    // mm/h NO OPERAR
+    const LIM_RAIN_WARN = 2;    // mm/h → PRECAUCIÓN
+    const LIM_RAIN_NO   = 8;    // mm/h → NO OPERAR
 
-    // Pistas
+    // Pistas LEWG
     const RWY = { '13': 130, '31': 310 };
 
     // ─── UTILIDADES ──────────────────────────────────────────────
-
-    function toKmh(ms) {
-      // El GW2000 envía velocidades en m/s en el protocolo Ecowitt
-      return Math.round(ms * 3.6);
-    }
 
     function windDirection(deg) {
       const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE',
@@ -472,31 +491,26 @@
     }
 
     function activeRwy(windDeg) {
-      // RWY con menor ángulo frente al viento (de cara)
       const diff13 = Math.abs(((windDeg - RWY['13'] + 540) % 360) - 180);
       const diff31 = Math.abs(((windDeg - RWY['31'] + 540) % 360) - 180);
       return diff13 <= diff31 ? '13' : '31';
     }
 
     function dewpoint(tempC, rh) {
-      // Fórmula de Magnus aproximada
       const a = 17.27, b = 237.7;
       const gamma = (a * tempC / (b + tempC)) + Math.log(rh / 100);
       return (b * gamma / (a - gamma));
     }
 
     function densityAlt(tempC, qnh) {
-      // ISA: temperatura estándar al nivel del aeródromo
-      const isaTemp  = 15 - (1.98 / 1000) * LEWG_ELEV * 0.3048; // °C
-      const presAlt  = LEWG_ELEV + 30 * (1013.25 - qnh);         // ft
-      const da       = presAlt + 120 * (tempC - isaTemp);         // ft
+      const isaTemp = 15 - (1.98 / 1000) * LEWG_ELEV * 0.3048;
+      const presAlt = LEWG_ELEV + 30 * (1013.25 - qnh);
+      const da      = presAlt + 120 * (tempC - isaTemp);
       return Math.round(da);
     }
 
     function skyEstimate(radiation) {
-      // radiation en W/m²; sólo válido de día
-      const now = new Date();
-      const h   = now.getHours();
+      const h = new Date().getHours();
       if (h < 7 || h >= 21) return { icon: '🌙', text: 'Sin datos (noche)' };
       if (radiation > 600)  return { icon: '☀️',  text: 'Despejado' };
       if (radiation > 300)  return { icon: '🌤️', text: 'Poco nuboso' };
@@ -507,35 +521,25 @@
 
     function vfrStatus(windSpeed, windGust, crosswind, rainMm) {
       const reasons = [];
-      if (windSpeed  > LIM_WIND)   reasons.push(`Viento ${windSpeed} km/h (máx ${LIM_WIND})`);
-      if (windGust   > LIM_GUST)   reasons.push(`Rachas ${windGust} km/h (máx ${LIM_GUST})`);
-      if (crosswind  > LIM_CROSS)  reasons.push(`Cruzado ${crosswind} km/h (máx ${LIM_CROSS})`);
-      if (rainMm     >= LIM_RAIN_NO)  reasons.push(`Precipitación intensa ${rainMm.toFixed(1)} mm`);
+      if (windSpeed >= LIM_WIND)    reasons.push(`Viento ${windSpeed} km/h (máx ${LIM_WIND})`);
+      if (windGust  >= LIM_GUST)    reasons.push(`Rachas ${windGust} km/h (máx ${LIM_GUST})`);
+      if (crosswind >= LIM_CROSS)   reasons.push(`Cruzado ${crosswind} km/h (máx ${LIM_CROSS})`);
+      if (rainMm    >= LIM_RAIN_NO) reasons.push(`Precipitación intensa ${rainMm.toFixed(1)} mm`);
       else if (rainMm >= LIM_RAIN_WARN) reasons.push(`Precipitación ligera ${rainMm.toFixed(1)} mm`);
 
-      const noOp  = windSpeed > LIM_WIND || windGust > LIM_GUST ||
-                    crosswind > LIM_CROSS || rainMm >= LIM_RAIN_NO;
-      const warn  = !noOp && (rainMm >= LIM_RAIN_WARN);
+      const noOp = windSpeed >= LIM_WIND || windGust >= LIM_GUST ||
+                   crosswind >= LIM_CROSS || rainMm  >= LIM_RAIN_NO;
+      const warn = !noOp && rainMm >= LIM_RAIN_WARN;
 
-      if (noOp)  return { cls: 'no',   label: '🔴 NO OPERAR',   reason: reasons.join(' · ') };
-      if (warn)  return { cls: 'warn', label: '🟡 PRECAUCIÓN',   reason: reasons.join(' · ') };
-      return           { cls: 'ok',   label: '🟢 VFR OK',        reason: '' };
+      if (noOp) return { cls: 'no',   label: '🔴 NO OPERAR',  reason: reasons.join(' · ') };
+      if (warn) return { cls: 'warn', label: '🟡 PRECAUCIÓN', reason: reasons.join(' · ') };
+      return          { cls: 'ok',   label: '🟢 VFR OK',      reason: '' };
     }
 
-    function localTime(isoOrNull) {
-      const d = isoOrNull ? new Date(isoOrNull) : new Date();
-      return d.toLocaleTimeString('es-ES', {
+    function localTime() {
+      return new Date().toLocaleTimeString('es-ES', {
         timeZone: 'Europe/Madrid',
         hour: '2-digit', minute: '2-digit', second: '2-digit'
-      });
-    }
-
-    function localDateTime(isoOrNull) {
-      const d = isoOrNull ? new Date(isoOrNull) : new Date();
-      return d.toLocaleString('es-ES', {
-        timeZone: 'Europe/Madrid',
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit'
       });
     }
 
@@ -546,15 +550,19 @@
       if (el) el.textContent = val;
     }
 
-    function showError(msg) {
-      document.getElementById('error-screen').classList.add('visible');
+    function showError(msg, isMixed) {
+      if (isMixed) {
+        document.getElementById('mixed-content-warning').classList.add('visible');
+        document.getElementById('error-screen').classList.remove('visible');
+      } else {
+        document.getElementById('error-screen').classList.add('visible');
+        document.getElementById('mixed-content-warning').classList.remove('visible');
+        setEl('error-detail', msg);
+      }
       document.getElementById('data-grid').querySelectorAll('.data-block')
         .forEach(b => b.style.display = 'none');
-      setEl('error-detail', msg);
-      const dot  = document.getElementById('connection-dot');
-      const hero = document.getElementById('vfr-hero');
-      dot.className  = 'error';
-      hero.className = 'loading';
+      document.getElementById('connection-dot').className = 'error';
+      document.getElementById('vfr-hero').className = 'loading';
       setEl('vfr-status', 'Sin datos');
       setEl('vfr-reason', '');
       setEl('ts-text', '—');
@@ -562,6 +570,7 @@
 
     function hideError() {
       document.getElementById('error-screen').classList.remove('visible');
+      document.getElementById('mixed-content-warning').classList.remove('visible');
       document.getElementById('data-grid').querySelectorAll('.data-block')
         .forEach(b => b.style.display = '');
     }
@@ -569,15 +578,10 @@
     function renderData(raw) {
       hideError();
 
-      // ── Extraer campos del JSON del GW2000 (protocolo Ecowitt) ──
-      // windspeedmph → convertimos, pero el GW2000 puede enviar en varios formatos.
-      // Soportamos tanto el envío directo Ecowitt (windspeedmph, windgustmph)
-      // como el JSON ya procesado con windspeed_kmh.
-
       let windSpeed, windGust, windDeg, tempC, humidity, pressureHpa, rainMm, radiation;
 
       if (raw.windspeed_kmh !== undefined) {
-        // JSON ya procesado
+        // JSON ya procesado (campos en km/h y °C)
         windSpeed   = Math.round(raw.windspeed_kmh);
         windGust    = Math.round(raw.windgust_kmh);
         windDeg     = Math.round(raw.winddir || 0);
@@ -587,20 +591,19 @@
         rainMm      = parseFloat(raw.rainratein || raw.rain_1h || 0);
         radiation   = parseFloat(raw.solarradiation || 0);
       } else {
-        // Protocolo Ecowitt raw (mph → km/h)
-        windSpeed   = Math.round((parseFloat(raw.windspeedmph  || 0)) * 1.60934);
-        windGust    = Math.round((parseFloat(raw.windgustmph   || 0)) * 1.60934);
-        windDeg     = Math.round(parseFloat(raw.winddir        || 0));
+        // Protocolo Ecowitt raw (mph → km/h, °F → °C, inHg → hPa)
+        windSpeed   = Math.round(parseFloat(raw.windspeedmph  || 0) * 1.60934);
+        windGust    = Math.round(parseFloat(raw.windgustmph   || 0) * 1.60934);
+        windDeg     = Math.round(parseFloat(raw.winddir       || 0));
         tempC       = (parseFloat(raw.tempf || 0) - 32) * 5 / 9;
-        humidity    = parseFloat(raw.humidity || 0);
+        humidity    = parseFloat(raw.humidity  || 0);
         pressureHpa = parseFloat(raw.baromrelin || 0) * 33.8639;
-        rainMm      = parseFloat(raw.rainratein  || 0) * 25.4;
+        rainMm      = parseFloat(raw.rainratein || 0) * 25.4;
         radiation   = parseFloat(raw.solarradiation || 0);
       }
 
-      // ── Cálculos derivados ──
-      const rwy     = activeRwy(windDeg);
-      const rwyDeg  = RWY[rwy];
+      // Cálculos derivados
+      const rwy    = activeRwy(windDeg);
       const { cross13, cross31 } = calcCrosswind(windDeg, windSpeed);
       const crossKmh = Math.round(rwy === '13' ? cross13 : cross31);
       const dp       = dewpoint(tempC, humidity);
@@ -609,56 +612,53 @@
       const sky      = skyEstimate(radiation);
       const vfr      = vfrStatus(windSpeed, windGust, crossKmh, rainMm);
 
-      // ── VFR Hero ──
-      const hero = document.getElementById('vfr-hero');
-      hero.className = vfr.cls;
+      // VFR Hero
+      document.getElementById('vfr-hero').className = vfr.cls;
       setEl('vfr-status', vfr.label);
       setEl('vfr-reason', vfr.reason);
 
-      // ── Viento ──
+      // Viento
       const windEl = document.getElementById('wind-speed');
       windEl.textContent = `${windSpeed} km/h`;
-      windEl.className   = 'data-value' + (windSpeed > LIM_WIND ? ' warn-value' : '');
+      windEl.className   = 'data-value' + (windSpeed >= LIM_WIND ? ' warn-value' : '');
 
       const gustEl = document.getElementById('wind-gust');
       gustEl.textContent = `${windGust} km/h`;
-      gustEl.className   = 'data-value' + (windGust > LIM_GUST ? ' warn-value' : '');
+      gustEl.className   = 'data-value' + (windGust >= LIM_GUST ? ' warn-value' : '');
 
       const crossEl = document.getElementById('wind-cross');
       crossEl.textContent = `${crossKmh} km/h`;
-      crossEl.className   = 'data-value' + (crossKmh > LIM_CROSS ? ' warn-value' : '');
+      crossEl.className   = 'data-value' + (crossKmh >= LIM_CROSS ? ' warn-value' : '');
 
       setEl('wind-dir', `${windDeg}° (${dirLabel})`);
       document.getElementById('rwy-active').textContent = `RWY ${rwy}`;
 
-      // ── Presión ──
+      // Presión
       setEl('qnh',         `${Math.round(pressureHpa)} hPa`);
       setEl('density-alt', `${da} ft`);
 
-      // ── Temperatura ──
+      // Temperatura
       setEl('temp',     `${tempC.toFixed(1)} °C`);
       setEl('dewpoint', `${dp.toFixed(1)} °C`);
       setEl('humidity', `${Math.round(humidity)} %`);
 
-      // ── Precipitación ──
+      // Precipitación
       const rainEl = document.getElementById('rain');
       rainEl.textContent = `${rainMm.toFixed(1)} mm`;
-      rainEl.className   = 'data-value' + (rainMm >= LIM_RAIN_NO   ? ' warn-value' :
-                                           rainMm >= LIM_RAIN_WARN  ? ' warn-value' : '');
+      rainEl.className   = 'data-value' + (rainMm >= LIM_RAIN_WARN ? ' warn-value' : '');
 
       const barPct = Math.min(100, (rainMm / LIM_RAIN_NO) * 100);
-      document.getElementById('rain-bar').style.width  = barPct + '%';
-      document.getElementById('rain-bar').style.background =
-        rainMm >= LIM_RAIN_NO ? 'var(--vfr-no)' :
-        rainMm >= LIM_RAIN_WARN ? 'var(--vfr-warn)' : 'var(--accent)';
+      const bar = document.getElementById('rain-bar');
+      bar.style.width      = barPct + '%';
+      bar.style.background = rainMm >= LIM_RAIN_NO   ? 'var(--vfr-no)'   :
+                             rainMm >= LIM_RAIN_WARN  ? 'var(--vfr-warn)' : 'var(--accent)';
 
-      // ── Cielo ──
+      // Cielo
       setEl('sky-icon', sky.icon);
-      setEl('sky-text', sky.text);
+      setEl('sky-text',  sky.text);
 
-      // ── Timestamp ──
-      const dot = document.getElementById('connection-dot');
-      dot.className = 'live';
+      // Timestamp
+      document.getElementById('connection-dot').className = 'live';
       setEl('ts-text', `Actualizado ${localTime()}`);
     }
 
@@ -666,15 +666,22 @@
 
     async function fetchMeteo() {
       try {
-        const res  = await fetch(ENDPOINT, { cache: 'no-store' });
+        const res = await fetch(ENDPOINT, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         renderData(data);
       } catch (err) {
         console.warn('SP Meteo fetch error:', err);
+
+        // Detectar bloqueo por mixed content (el navegador bloquea HTTP desde HTTPS)
+        const isMixed = location.protocol === 'https:' &&
+                        err instanceof TypeError &&
+                        err.message.toLowerCase().includes('failed to fetch');
+
         showError(
           'No se han podido obtener datos del servidor meteorológico. ' +
-          'Comprueba tu conexión a internet. El sistema reintentará automáticamente.'
+          'Comprueba tu conexión a internet. El sistema reintentará automáticamente.',
+          isMixed
         );
       }
     }

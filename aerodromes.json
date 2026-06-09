@@ -1,0 +1,23 @@
+{
+  "default": "LEWG",
+  "aerodromes": [
+    {
+      "icao": "LEWG",
+      "name": "Villanueva de Gállego",
+      "city": "Zaragoza",
+      "elevation_ft": 879,
+      "endpoint": "http://sportpilots.ddns.net:5678/webhook/meteo",
+      "runways": [
+        { "id": "13", "bearing": 130 },
+        { "id": "31", "bearing": 310 }
+      ],
+      "vfr_limits": {
+        "wind_kmh":       35,
+        "gust_kmh":       45,
+        "crosswind_kmh":  20,
+        "rain_warn_mmh":   2,
+        "rain_no_mmh":     8
+      }
+    }
+  ]
+}

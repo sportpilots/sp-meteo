@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SP Meteo">
-  <title>SP Meteo — LEWG</title>
+  <title>SP Meteo</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -325,7 +325,7 @@
 
   <!-- HERO VFR -->
   <div id="vfr-hero" class="loading">
-    <div class="aerodrome-label">LEWG · Villanueva de Gállego</div>
+    <div class="aerodrome-label" id="aerodrome-label">Cargando…</div>
     <div id="vfr-status" class="loading-pulse">Cargando…</div>
     <div id="vfr-reason"></div>
   </div>
@@ -348,9 +348,8 @@
       porque la app usa HTTPS pero el servidor responde por HTTP.<br><br>
       <strong>Solución:</strong> abre la app en Chrome en lugar de Safari,
       o accede directamente por HTTP:<br>
-      <a href="http://sportpilots.ddns.net:5678/webhook/meteo"
+      <a id="mixed-content-link" href="#"
          style="color:var(--accent);word-break:break-all;">
-        http://sportpilots.ddns.net:5678/webhook/meteo
       </a>
     </div>
 
@@ -452,26 +451,51 @@
   </div>
 
   <!-- VERSION -->
-  <div id="version-tag">SP Meteo v1.3.0</div>
+  <div id="version-tag">SP Meteo v1.4.0</div>
 
 
   <script>
-    // ─── CONFIGURACIÓN ──────────────────────────────────────────
-    const ENDPOINT   = 'http://sportpilots.ddns.net:5678/webhook/meteo';
-    const INTERVAL   = 30000; // ms — actualización automática cada 30 segundos
-    const LEWG_ELEV  = 879;   // ft
+    // ─── CONFIGURACIÓN GLOBAL (se carga desde aerodromes.json) ──────
+    // Estas variables se rellenan al arrancar la app.
+    // NO las toques aquí — edita aerodromes.json para cambiar valores.
+    let CFG = null;   // configuración del aeródromo activo
+    const INTERVAL = 30000; // ms — actualización automática cada 30 segundos
 
-    // Límites VFR LEWG
-    const LIM_WIND      = 35;   // km/h sostenido
-    const LIM_GUST      = 45;   // km/h racha
-    const LIM_CROSS     = 20;   // km/h cruzado
-    const LIM_RAIN_WARN = 2;    // mm/h → PRECAUCIÓN
-    const LIM_RAIN_NO   = 8;    // mm/h → NO OPERAR
+    // ─── CARGA DE CONFIGURACIÓN ──────────────────────────────────────
 
-    // Pistas LEWG
-    const RWY = { '13': 130, '31': 310 };
+    async function loadConfig() {
+      const res  = await fetch('./aerodromes.json', { cache: 'no-store' });
+      const json = await res.json();
+      const defaultIcao = json.default;
+      CFG = json.aerodromes.find(a => a.icao === defaultIcao) || json.aerodromes[0];
 
-    // ─── UTILIDADES ──────────────────────────────────────────────
+      // Actualizar cabecera con el aeródromo real
+      document.getElementById('aerodrome-label').textContent =
+        `${CFG.icao} · ${CFG.name}`;
+
+      // Actualizar enlace de aviso mixed-content
+      const linkEl = document.getElementById('mixed-content-link');
+      linkEl.href        = CFG.endpoint;
+      linkEl.textContent = CFG.endpoint;
+    }
+
+    // ─── ATAJOS A LÍMITES VFR ────────────────────────────────────────
+    // Se usan en renderData() — devuelven el valor del aeródromo activo.
+    function LIM_WIND()      { return CFG.vfr_limits.wind_kmh; }
+    function LIM_GUST()      { return CFG.vfr_limits.gust_kmh; }
+    function LIM_CROSS()     { return CFG.vfr_limits.crosswind_kmh; }
+    function LIM_RAIN_WARN() { return CFG.vfr_limits.rain_warn_mmh; }
+    function LIM_RAIN_NO()   { return CFG.vfr_limits.rain_no_mmh; }
+
+    // ─── ATAJOS A PISTAS ────────────────────────────────────────────
+    // Construye un objeto { '13': 130, '31': 310 } desde el JSON.
+    function getRwyMap() {
+      const m = {};
+      CFG.runways.forEach(r => { m[r.id] = r.bearing; });
+      return m;
+    }
+
+    // ─── UTILIDADES ──────────────────────────────────────────────────
 
     function windDirection(deg) {
       const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE',
@@ -479,21 +503,28 @@
       return dirs[Math.round(deg / 22.5) % 16];
     }
 
-    function crosswindComponent(windDeg, rwyDeg) {
-      const angle = (windDeg - rwyDeg) * Math.PI / 180;
+    function crosswindComponent(windDeg, rwyBearing) {
+      const angle = (windDeg - rwyBearing) * Math.PI / 180;
       return Math.abs(Math.sin(angle));
     }
 
     function calcCrosswind(windDeg, windSpeed) {
-      const cross13 = crosswindComponent(windDeg, RWY['13']) * windSpeed;
-      const cross31 = crosswindComponent(windDeg, RWY['31']) * windSpeed;
-      return { cross13, cross31 };
+      const RWY = getRwyMap();
+      const result = {};
+      Object.entries(RWY).forEach(([id, bearing]) => {
+        result[id] = crosswindComponent(windDeg, bearing) * windSpeed;
+      });
+      return result;
     }
 
     function activeRwy(windDeg) {
-      const diff13 = Math.abs(((windDeg - RWY['13'] + 540) % 360) - 180);
-      const diff31 = Math.abs(((windDeg - RWY['31'] + 540) % 360) - 180);
-      return diff13 <= diff31 ? '13' : '31';
+      const RWY = getRwyMap();
+      let bestId = null, bestDiff = 999;
+      Object.entries(RWY).forEach(([id, bearing]) => {
+        const diff = Math.abs(((windDeg - bearing + 540) % 360) - 180);
+        if (diff < bestDiff) { bestDiff = diff; bestId = id; }
+      });
+      return bestId;
     }
 
     function dewpoint(tempC, rh) {
@@ -503,10 +534,10 @@
     }
 
     function densityAlt(tempC, qnh) {
-      const isaTemp = 15 - (1.98 / 1000) * LEWG_ELEV * 0.3048;
-      const presAlt = LEWG_ELEV + 30 * (1013.25 - qnh);
-      const da      = presAlt + 120 * (tempC - isaTemp);
-      return Math.round(da);
+      const elev    = CFG.elevation_ft;
+      const isaTemp = 15 - (1.98 / 1000) * elev * 0.3048;
+      const presAlt = elev + 30 * (1013.25 - qnh);
+      return Math.round(presAlt + 120 * (tempC - isaTemp));
     }
 
     function skyEstimate(radiation) {
@@ -521,15 +552,15 @@
 
     function vfrStatus(windSpeed, windGust, crosswind, rainMm) {
       const reasons = [];
-      if (windSpeed >= LIM_WIND)    reasons.push(`Viento ${windSpeed} km/h (máx ${LIM_WIND})`);
-      if (windGust  >= LIM_GUST)    reasons.push(`Rachas ${windGust} km/h (máx ${LIM_GUST})`);
-      if (crosswind >= LIM_CROSS)   reasons.push(`Cruzado ${crosswind} km/h (máx ${LIM_CROSS})`);
-      if (rainMm    >= LIM_RAIN_NO) reasons.push(`Precipitación intensa ${rainMm.toFixed(1)} mm`);
-      else if (rainMm >= LIM_RAIN_WARN) reasons.push(`Precipitación ligera ${rainMm.toFixed(1)} mm`);
+      if (windSpeed >= LIM_WIND())    reasons.push(`Viento ${windSpeed} km/h (máx ${LIM_WIND()})`);
+      if (windGust  >= LIM_GUST())    reasons.push(`Rachas ${windGust} km/h (máx ${LIM_GUST()})`);
+      if (crosswind >= LIM_CROSS())   reasons.push(`Cruzado ${crosswind} km/h (máx ${LIM_CROSS()})`);
+      if (rainMm    >= LIM_RAIN_NO()) reasons.push(`Precipitación intensa ${rainMm.toFixed(1)} mm`);
+      else if (rainMm >= LIM_RAIN_WARN()) reasons.push(`Precipitación ligera ${rainMm.toFixed(1)} mm`);
 
-      const noOp = windSpeed >= LIM_WIND || windGust >= LIM_GUST ||
-                   crosswind >= LIM_CROSS || rainMm  >= LIM_RAIN_NO;
-      const warn = !noOp && rainMm >= LIM_RAIN_WARN;
+      const noOp = windSpeed >= LIM_WIND() || windGust >= LIM_GUST() ||
+                   crosswind >= LIM_CROSS() || rainMm  >= LIM_RAIN_NO();
+      const warn = !noOp && rainMm >= LIM_RAIN_WARN();
 
       if (noOp) return { cls: 'no',   label: '🔴 NO OPERAR',  reason: reasons.join(' · ') };
       if (warn) return { cls: 'warn', label: '🟡 PRECAUCIÓN', reason: reasons.join(' · ') };
@@ -543,7 +574,7 @@
       });
     }
 
-    // ─── RENDERIZADO ─────────────────────────────────────────────
+    // ─── RENDERIZADO ─────────────────────────────────────────────────
 
     function setEl(id, val) {
       const el = document.getElementById(id);
@@ -603,9 +634,9 @@
       }
 
       // Cálculos derivados
-      const rwy    = activeRwy(windDeg);
-      const { cross13, cross31 } = calcCrosswind(windDeg, windSpeed);
-      const crossKmh = Math.round(rwy === '13' ? cross13 : cross31);
+      const rwy      = activeRwy(windDeg);
+      const crossMap = calcCrosswind(windDeg, windSpeed);
+      const crossKmh = Math.round(crossMap[rwy] || 0);
       const dp       = dewpoint(tempC, humidity);
       const da       = densityAlt(tempC, pressureHpa);
       const dirLabel = windDirection(windDeg);
@@ -620,15 +651,15 @@
       // Viento
       const windEl = document.getElementById('wind-speed');
       windEl.textContent = `${windSpeed} km/h`;
-      windEl.className   = 'data-value' + (windSpeed >= LIM_WIND ? ' warn-value' : '');
+      windEl.className   = 'data-value' + (windSpeed >= LIM_WIND() ? ' warn-value' : '');
 
       const gustEl = document.getElementById('wind-gust');
       gustEl.textContent = `${windGust} km/h`;
-      gustEl.className   = 'data-value' + (windGust >= LIM_GUST ? ' warn-value' : '');
+      gustEl.className   = 'data-value' + (windGust >= LIM_GUST() ? ' warn-value' : '');
 
       const crossEl = document.getElementById('wind-cross');
       crossEl.textContent = `${crossKmh} km/h`;
-      crossEl.className   = 'data-value' + (crossKmh >= LIM_CROSS ? ' warn-value' : '');
+      crossEl.className   = 'data-value' + (crossKmh >= LIM_CROSS() ? ' warn-value' : '');
 
       setEl('wind-dir', `${windDeg}° (${dirLabel})`);
       document.getElementById('rwy-active').textContent = `RWY ${rwy}`;
@@ -645,13 +676,13 @@
       // Precipitación
       const rainEl = document.getElementById('rain');
       rainEl.textContent = `${rainMm.toFixed(1)} mm`;
-      rainEl.className   = 'data-value' + (rainMm >= LIM_RAIN_WARN ? ' warn-value' : '');
+      rainEl.className   = 'data-value' + (rainMm >= LIM_RAIN_WARN() ? ' warn-value' : '');
 
-      const barPct = Math.min(100, (rainMm / LIM_RAIN_NO) * 100);
+      const barPct = Math.min(100, (rainMm / LIM_RAIN_NO()) * 100);
       const bar = document.getElementById('rain-bar');
       bar.style.width      = barPct + '%';
-      bar.style.background = rainMm >= LIM_RAIN_NO   ? 'var(--vfr-no)'   :
-                             rainMm >= LIM_RAIN_WARN  ? 'var(--vfr-warn)' : 'var(--accent)';
+      bar.style.background = rainMm >= LIM_RAIN_NO()   ? 'var(--vfr-no)'   :
+                             rainMm >= LIM_RAIN_WARN()  ? 'var(--vfr-warn)' : 'var(--accent)';
 
       // Cielo
       setEl('sky-icon', sky.icon);
@@ -662,22 +693,20 @@
       setEl('ts-text', `Actualizado ${localTime()}`);
     }
 
-    // ─── FETCH ────────────────────────────────────────────────────
+    // ─── FETCH METEO ─────────────────────────────────────────────────
 
     async function fetchMeteo() {
+      if (!CFG) return; // Espera a que la config esté cargada
       try {
-        const res = await fetch(ENDPOINT, { cache: 'no-store' });
+        const res = await fetch(CFG.endpoint, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         renderData(data);
       } catch (err) {
         console.warn('SP Meteo fetch error:', err);
-
-        // Detectar bloqueo por mixed content (el navegador bloquea HTTP desde HTTPS)
         const isMixed = location.protocol === 'https:' &&
                         err instanceof TypeError &&
                         err.message.toLowerCase().includes('failed to fetch');
-
         showError(
           'No se han podido obtener datos del servidor meteorológico. ' +
           'Comprueba tu conexión a internet. El sistema reintentará automáticamente.',
@@ -686,14 +715,24 @@
       }
     }
 
-    // ─── INIT ─────────────────────────────────────────────────────
+    // ─── INIT ─────────────────────────────────────────────────────────
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
 
-    fetchMeteo();
-    setInterval(fetchMeteo, INTERVAL);
+    // Primero carga la configuración, luego arranca el polling
+    loadConfig()
+      .then(() => {
+        fetchMeteo();
+        setInterval(fetchMeteo, INTERVAL);
+      })
+      .catch(err => {
+        console.error('Error cargando aerodromes.json:', err);
+        document.getElementById('aerodrome-label').textContent = 'Error de configuración';
+        showError('No se pudo cargar la configuración del aeródromo.', false);
+      });
+
   </script>
 </body>
 </html>

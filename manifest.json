@@ -1,0 +1,25 @@
+{
+  "name": "SP Meteo — LEWG",
+  "short_name": "SP Meteo",
+  "description": "Consulta meteorológica en tiempo real para el aeródromo LEWG",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0D1117",
+  "theme_color": "#0D1117",
+  "orientation": "portrait-primary",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
